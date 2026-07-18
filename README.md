@@ -2,6 +2,7 @@
 Design and implementation of a sign language image classification system and real-time translation to speech
 
 ## 🏛️ Course Information
+- **University Name:** Sharif University of Technology
 - **Course Name:** Artificial Intelligence
 - **Instructor:** Dr. Tanghatari
 - **Semester:** 14042
