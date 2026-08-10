@@ -6,6 +6,17 @@ from PIL import Image
 
 IMAGE_SIZE = 64
 
+POOL_SIZE = 2
+KERNEL_SIZE  = 3
+L_DROPOUT = 0.2
+L1_OUT_CHANNEL  = 32
+L2_OUT_CHANNEL  = L1_OUT_CHANNEL * 2
+L3_OUT_CHANNEL  = L2_OUT_CHANNEL * 2
+L4_OUT_CHANNEL  = L3_OUT_CHANNEL * 2
+F_DROPOUT = 0.5
+L1_NEURON = 512
+FINAL_DIM = IMAGE_SIZE // 16 # x Layers --> 2 ** x
+
 class ASLDataset(Dataset):
 	def __init__(self, X: Series, Y: Series, transform=None):
 		self.X = X.reset_index(drop = True)
@@ -37,16 +48,22 @@ class ASLDataset(Dataset):
 class CNN(nn.Module):
         def __init__(self, num_classes):
                 super().__init__()
-                self.POOL_SIZE = 2
-                self.L1_OUT_CHANNEL  = 32
-                self.L1_KERNEL_SIZE  = 3
-                self.L2_OUT_CHANNEL  = 64
-                self.L2_KERNEL_SIZE  = 3
-                self.L3_OUT_CHANNEL  = 128
-                self.L3_KERNEL_SIZE  = 3
-                self.DROPOUT_P = 0.5
-                self.L1_NEURON = 512
-                self.FINAL_DIM = IMAGE_SIZE // 8 # x Layers --> 2 ** x
+                self.POOL_SIZE = POOL_SIZE
+                self.L1_OUT_CHANNEL  = L1_OUT_CHANNEL
+                self.L1_KERNEL_SIZE  = KERNEL_SIZE
+                self.L1_DROPOUT = L_DROPOUT
+                self.L2_OUT_CHANNEL  = L2_OUT_CHANNEL
+                self.L2_KERNEL_SIZE  = KERNEL_SIZE
+                self.L2_DROPOUT = L_DROPOUT
+                self.L3_OUT_CHANNEL  = L3_OUT_CHANNEL
+                self.L3_KERNEL_SIZE  = KERNEL_SIZE
+                self.L3_DROPOUT = L_DROPOUT
+                self.L4_OUT_CHANNEL  = L4_OUT_CHANNEL
+                self.L4_KERNEL_SIZE  = KERNEL_SIZE
+                self.L4_DROPOUT = L_DROPOUT
+                self.F_DROPOUT = F_DROPOUT
+                self.L1_NEURON = L1_NEURON
+                self.FINAL_DIM = FINAL_DIM
                 
                 
                 self.pool = nn.MaxPool2d(
@@ -64,6 +81,7 @@ class CNN(nn.Module):
                         padding = (self.L1_KERNEL_SIZE - 1) // 2
                 )
                 self.batch_norm1 = nn.BatchNorm2d(self.L1_OUT_CHANNEL)
+                self.do1 = nn.Dropout(self.L1_DROPOUT)
                 
                 # Layer  2
                 
@@ -74,6 +92,7 @@ class CNN(nn.Module):
                         padding = (self.L2_KERNEL_SIZE - 1) // 2
                 )
                 self.batch_norm2 = nn.BatchNorm2d(self.L2_OUT_CHANNEL)
+                self.do2 = nn.Dropout(self.L2_DROPOUT)
                 
                 # Layer  3
                 self.conv3 = nn.Conv2d(
@@ -83,27 +102,40 @@ class CNN(nn.Module):
                         padding = (self.L3_KERNEL_SIZE - 1) // 2
                 )
                 self.batch_norm3 = nn.BatchNorm2d(self.L3_OUT_CHANNEL)
+                self.do3 = nn.Dropout(self.L3_DROPOUT)
                 
+                # Layer  4
+                self.conv4 = nn.Conv2d(
+                        in_channels = self.L3_OUT_CHANNEL,
+                        out_channels = self.L4_OUT_CHANNEL,
+                        kernel_size = self.L4_KERNEL_SIZE,
+                        padding = (self.L4_KERNEL_SIZE - 1) // 2
+                )
+                self.batch_norm4 = nn.BatchNorm2d(self.L4_OUT_CHANNEL)
+                self.do4 = nn.Dropout(self.L4_DROPOUT)
                 
                 # Fully Connected (Dense) Layers
-                self.dropout = nn.Dropout(self.DROPOUT_P)
+                self.dropout = nn.Dropout(self.F_DROPOUT)
                 # After three MaxPools of 2x2, a 64x64 image becomes 8x8. 
                 # So the flattened size is 128 channels * FINAL_DIM * FINAL_DIM
                 
-                self.fully_connected1 = nn.Linear(self.L3_OUT_CHANNEL * self.FINAL_DIM * self.FINAL_DIM, self.L1_NEURON)
+                self.fully_connected1 = nn.Linear(self.L4_OUT_CHANNEL * self.FINAL_DIM * self.FINAL_DIM, self.L1_NEURON)
                 self.fully_connected2 = nn.Linear(self.L1_NEURON, num_classes)
                 
         def forward(self, x: torch.Tensor):
                 # L1
-                x = self.pool(self.relu(self.batch_norm1(self.conv1(x))))
+                x = self.pool(self.do1(self.relu(self.batch_norm1(self.conv1(x)))))
                 
                 # L2
-                x = self.pool(self.relu(self.batch_norm2(self.conv2(x))))
+                x = self.pool(self.do2(self.relu(self.batch_norm2(self.conv2(x)))))
                 
                 # L3
-                x = self.pool(self.relu(self.batch_norm3(self.conv3(x))))
+                x = self.pool(self.do3(self.relu(self.batch_norm3(self.conv3(x)))))
                 
-                x = x.view(-1, self.L3_OUT_CHANNEL * self.FINAL_DIM * self.FINAL_DIM)
+                # L4
+                x = self.pool(self.do4(self.relu(self.batch_norm4(self.conv4(x)))))
+                
+                x = x.view(-1, self.L4_OUT_CHANNEL * self.FINAL_DIM * self.FINAL_DIM)
                 
                 x = self.dropout(self.relu(self.fully_connected1(x)))
                 x = self.fully_connected2(x)
