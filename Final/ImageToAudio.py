@@ -10,7 +10,7 @@ from gtts import gTTS
 
 project_root = os_path.dirname(os_path.dirname(os_path.abspath("Model.py")))
 sys_path.append(project_root)
-from Model_Training.Model import CNN
+from Model import CNN
 
 IMAGE_SIZE = 64
 BOX_SIZE = 300
@@ -29,9 +29,9 @@ model.load_state_dict(torch.load(best_model_path))
 model.eval()
 
 inference_transforms = transforms.Compose([
-    transforms.ToPILImage(),                 # ۱. تبدیل آرایه به PIL (امنتر)
-    transforms.Resize((IMAGE_SIZE, IMAGE_SIZE)),
-    transforms.ToTensor(),                   # ۲. تبدیل به تنسور و مقیاس [0,1]
+        transforms.ToPILImage(),
+        transforms.Resize((IMAGE_SIZE, IMAGE_SIZE)),
+        transforms.ToTensor(),
 ])
 
 def text_to_audio(x: str, addr: str, name: str) -> None:
